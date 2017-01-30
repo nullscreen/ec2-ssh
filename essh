@@ -132,9 +132,9 @@ else
       host="${parts[0]}"
       state="${parts[1]}"
       name="${parts[*]:2}"
-      [ "${#name}" -gt 25 ] && name="${name:0:22}..."
+      [ "${#name}" -gt 40 ] && name="${name:0:37}..."
       [ "${#host}" -gt 30 ] && host="${host:0:27}..."
-      printf '%-3s %-25s %-30s %-13s\n' \
+      printf '%-3s %-40s %-30s %-13s\n' \
 	"${number})" "$name" "$host" "$state"
       number=$((number + 1))
     done
