@@ -22,7 +22,10 @@ substring.
 
 OPTIONS
   -c|--choose     Chose the given number instead of showing choices
+  -d|--private    Use private DNS name
+  -D|--public     Use public DNS name
   -h|--help       Show this help message
+  -l|--list       Force showing the list even for only 1 option
   -n|--host-only  Print the host name instead of sshing to the host
   -p|--profile    Specify an AWS CLI configuration profile
   -r|--region     Specify an AWS region
@@ -35,8 +38,8 @@ getopt -T && error 'GNU getopt required. Legacy getopt not supported.'
 
 # Parse options with getopt
 options="$(getopt \
-  -o 'c:hnp:r:u:v' \
-  --long 'choose:,help,host-only,profile,region,user:verbose' \
+  -o 'c:dDhlnp:r:u:v' \
+  --long 'choose:,private,public,help,list,host-only,profile,region,user:verbose' \
   -n "$(basename "$0")" \
   --quiet \
   -- "$@" \
@@ -47,8 +50,14 @@ while true; do
   case "$1" in
     -c|--choose)
       choose="$2"; shift 2 ;;
+    -d|--private)
+      dns_type=private; shift 1 ;;
+    -D|--public)
+      dns_type=public; shift 1 ;;
     -h|--help)
       usage && exit ;;
+    -l|--list)
+      list=1; shift 1 ;;
     -n|--host-only)
       host_only=1; shift 1 ;;
     -p|--profile)
@@ -97,14 +106,22 @@ while read -r line; do
 
   [[ "$name" == *"$target_name"* ]] || continue
 
-  [ -n "$public" ] && host="$public" || host="$private"
+  if [ "$dns_type" = 'private' ]; then
+    host="$private"
+  elif [ "$dns_type" = 'public' ]; then
+    host="$public"
+  else
+    [ -n "$public" ] && host="$public" || host="$private"
+  fi
+
+  [ -n "$host" ] || continue
 
   canidates+=("${host} ${state} ${name}")
 done < <("${aws_cmd[@]}")
 
 if [ "${#canidates[@]}" -eq 0 ]; then
   error "No hosts found"
-elif [ "${#canidates[@]}" -eq 1 ]; then
+elif [ "${#canidates[@]}" -eq 1 ] && [ -z "$list" ]; then
   canidate=(${canidates[@]})
   host="${canidate[0]}"
 else
