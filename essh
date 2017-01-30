@@ -23,6 +23,7 @@ OPTIONS
   -n|--host-only  Print the host name instead of sshing to the host
   -p|--profile    Specify an AWS CLI configuration profile
   -r|--region     Specify an AWS region
+  -u|--user       Specify a login user
   --              If given, any options after it are sent to ssh
 EOF
 }
@@ -31,8 +32,8 @@ getopt -T && error 'GNU getopt required. Legacy getopt not supported.'
 
 # Parse options with getopt
 options="$(getopt \
-  -o 'c:hnp:r:v' \
-  --long 'choose:,help,host-only,profile,region,verbose' \
+  -o 'c:hnp:r:u:v' \
+  --long 'choose:,help,host-only,profile,region,user:verbose' \
   -n "$(basename "$0")" \
   --quiet \
   -- "$@" \
@@ -51,6 +52,8 @@ while true; do
       profile="$2"; shift 2 ;;
     -r|--region)
       region="$2"; shift 2 ;;
+    -u|--user)
+      user="$2"; shift 2 ;;
     --) shift 1; break ;;
     *)
       usage_error "Invalid option $1" ;;
@@ -141,6 +144,6 @@ if [ -n "$host_only" ]; then
   exit
 fi
 
-
+[ -n "$user" ] && host="${user}@${host}"
 ssh_cmd=(ssh "$host" "$@")
 exec "${ssh_cmd[@]}"
