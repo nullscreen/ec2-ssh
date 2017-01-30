@@ -1,0 +1,146 @@
+#!/usr/bin/env bash
+
+error() {
+  echo "$@"
+  exit 1
+}
+
+usage_error() {
+  [ "$#" -gt 0 ] && echo "$@"
+  usage
+  exit 1
+}
+
+usage() {
+  cat >&2 <<EOF
+Usage: $(basename "$0") [OPTIONS] [HOST_TAG] [-- [SSH_OPTS]]
+
+SSH to an AWS EC2 instance by Name tag.
+
+OPTIONS
+  -c|--choose     Chose the given number instead of showing choices
+  -h|--help       Show this help message
+  -n|--host-only  Print the host name instead of sshing to the host
+  -p|--profile    Specify an AWS CLI configuration profile
+  -r|--region     Specify an AWS region
+  --              If given, any options after it are sent to ssh
+EOF
+}
+
+getopt -T && error 'GNU getopt required. Legacy getopt not supported.'
+
+# Parse options with getopt
+options="$(getopt \
+  -o 'c:hnp:r:v' \
+  --long 'choose:,help,host-only,profile,region,verbose' \
+  -n "$(basename "$0")" \
+  --quiet \
+  -- "$@" \
+)"
+eval set -- "$options"
+
+while true; do
+  case "$1" in
+    -c|--choose)
+      choose="$2"; shift 2 ;;
+    -h|--help)
+      usage && exit ;;
+    -n|--host-only)
+      host_only=1; shift 1 ;;
+    -p|--profile)
+      profile="$2"; shift 2 ;;
+    -r|--region)
+      region="$2"; shift 2 ;;
+    --) shift 1; break ;;
+    *)
+      usage_error "Invalid option $1" ;;
+  esac
+done
+
+if [ "$#" -gt 0 ]; then
+  target_name="$1"
+  shift
+fi
+
+if ! hash aws 2>/dev/null; then
+  error 'The aws CLI is required'
+fi
+
+query="Reservations[*].Instances[*].["
+query+="PrivateDnsName,"
+query+="PublicDnsName,"
+query+="State.Name,"
+query+="Tags[?Key=='Name'] | [0].Value"
+query+="]"
+
+filter="Name=instance-state-name,Values=pending,running,shutting-down,stopping"
+
+aws_cmd=(aws ec2 describe-instances \
+  --output text \
+  --query "$query" \
+  --filter "$filter" \
+)
+[ -n "$profile" ] && aws_cmd+=(--profile "$profile")
+[ -n "$region" ] && aws_cmd+=(--region "$region")
+
+while read -r line; do
+  private="$(echo "$line" | cut -d$'\t' -f1)"
+  public="$(echo "$line" | cut -d$'\t' -f2)"
+  state="$(echo "$line" | cut -d$'\t' -f3)"
+  name="$(echo "$line" | cut -d$'\t' -f4-)"
+
+  [[ "$name" == *"$target_name"* ]] || continue
+
+  [ -n "$public" ] && host="$public" || host="$private"
+
+  canidates+=("${host} ${state} ${name}")
+done < <("${aws_cmd[@]}")
+
+if [ "${#canidates[@]}" -eq 0 ]; then
+  error "No hosts found"
+elif [ "${#canidates[@]}" -eq 1 ]; then
+  canidate=(${canidates[@]})
+  host="${canidate[0]}"
+else
+  if [ -z "$choose" ]; then
+    number=1
+    for canidate in "${canidates[@]}"; do
+      parts=($canidate)
+      host="${parts[0]}"
+      state="${parts[1]}"
+      name="${parts[*]:2}"
+      [ "${#name}" -gt 25 ] && name="${name:0:22}..."
+      [ "${#host}" -gt 30 ] && host="${host:0:27}..."
+      printf '%-3s %-25s %-30s %-13s\n' \
+	"${number})" "$name" "$host" "$state"
+      number=$((number + 1))
+    done
+
+    echo -n '> '
+    read -r choose
+  fi
+
+  if [ -z "$choose" ]; then
+    exit
+  fi
+
+  if ! [[ "$choose" =~ ^[0-9]+$ ]]; then
+    error "Invalid choice ${choose}"
+  fi
+
+  if [ "$choose" -lt 1 ] || [ "$choose" -gt "${#canidates[@]}" ]; then
+    error "Choice ${choose} out of range"
+  fi
+
+  chosen=(${canidates[(($choose - 1))]})
+  host="${chosen[0]}"
+fi
+
+if [ -n "$host_only" ]; then
+  echo "$host"
+  exit
+fi
+
+
+ssh_cmd=(ssh "$host" "$@")
+exec "${ssh_cmd[@]}"
