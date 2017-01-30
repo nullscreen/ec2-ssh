@@ -13,9 +13,12 @@ usage_error() {
 
 usage() {
   cat >&2 <<EOF
-Usage: $(basename "$0") [OPTIONS] [HOST_TAG] [-- [SSH_OPTS]]
+Usage: $(basename "$0") [OPTIONS] [SEARCH] [-- [SSH_OPTS]]
 
-SSH to an AWS EC2 instance by Name tag.
+SSH to an AWS EC2 instance by Name tag. SEARCH can be a host Name tag or
+substring.
+
+  essh web
 
 OPTIONS
   -c|--choose     Chose the given number instead of showing choices
