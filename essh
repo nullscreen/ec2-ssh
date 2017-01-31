@@ -16,7 +16,7 @@ usage() {
 Usage: $(basename "$0") [OPTIONS] [SEARCH] [-- [SSH_OPTS]]
 
 SSH to an AWS EC2 instance by Name tag. SEARCH can be a host Name tag or
-substring.
+substring. If SEARCH is omitted, all hosts will be selected.
 
   essh web
 
