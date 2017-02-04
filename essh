@@ -1,14 +1,21 @@
 #!/usr/bin/env bash
 
+verbose=
+
 error() {
-  echo "$@"
+  echo "$*" >&2
   exit 1
 }
 
 usage_error() {
-  [ "$#" -gt 0 ] && echo "$@"
+  [ "$#" -gt 0 ] && echo "$*" >&2
   usage
   exit 1
+}
+
+verbose() {
+  [ -n "$verbose" ] || return
+  echo "$*" >&2
 }
 
 usage() {
@@ -21,16 +28,18 @@ substring. If SEARCH is omitted, all hosts will be selected.
   essh web
 
 OPTIONS
-  -c|--choose     Chose the given number instead of showing choices
-  -d|--private    Use private DNS name
-  -D|--public     Use public DNS name
-  -h|--help       Show this help message
-  -l|--list       Force showing the list even for only 1 option
-  -n|--host-only  Print the host name instead of sshing to the host
-  -p|--profile    Specify an AWS CLI configuration profile
-  -r|--region     Specify an AWS region
-  -u|--user       Specify a login user
-  --              If given, any options after it are sent to ssh
+  -c|--choose        Chose the given number instead of showing choices
+  -d|--private       Use private DNS name
+  -D|--public        Use public DNS name
+  -h|--help          Show this help message
+  -l|--list          Force showing the list even for only 1 option
+  -n|--host-only     Print the host name instead of sshing to the host
+  -p|--profile       An AWS CLI configuration profile. Multiple allowed.
+  -r|--region        An AWS region. Multiple allowed.
+  -R|--all-regions   Search all AWS regions. Overrides -r.
+  -u|--user          An ssh login user
+  -v|--verbose       Show verbose messages
+  --                 If given, any options after it are sent to ssh
 EOF
 }
 
@@ -38,8 +47,8 @@ getopt -T && error 'GNU getopt required. Legacy getopt not supported.'
 
 # Parse options with getopt
 options="$(getopt \
-  -o 'c:dDhlnp:r:u:v' \
-  --long 'choose:,private,public,help,list,host-only,profile,region,user:verbose' \
+  -o 'c:dDhlnp:r:Ru:v' \
+  --long 'choose:,private,public,help,list,host-only,profile,region,all-regions,user:verbose' \
   -n "$(basename "$0")" \
   --quiet \
   -- "$@" \
@@ -61,11 +70,15 @@ while true; do
     -n|--host-only)
       host_only=1; shift 1 ;;
     -p|--profile)
-      profile="$2"; shift 2 ;;
+      profiles+=("$2"); shift 2 ;;
     -r|--region)
-      region="$2"; shift 2 ;;
+      regions+=("$2"); shift 2 ;;
+    -R|--all-regions)
+      all_regions=1; shift 1 ;;
     -u|--user)
       user="$2"; shift 2 ;;
+    -v|--verbose)
+      verbose=1; shift 1 ;;
     --) shift 1; break ;;
     *)
       usage_error "Invalid option $1" ;;
@@ -90,34 +103,58 @@ query+="]"
 
 filter="Name=instance-state-name,Values=pending,running,shutting-down,stopping"
 
-aws_cmd=(aws ec2 describe-instances \
-  --output text \
-  --query "$query" \
-  --filter "$filter" \
-)
-[ -n "$profile" ] && aws_cmd+=(--profile "$profile")
-[ -n "$region" ] && aws_cmd+=(--region "$region")
+add_canidates() {
+  local profile="$1"
+  local region="$2"
 
-while read -r line; do
-  private="$(echo "$line" | cut -d$'\t' -f1)"
-  public="$(echo "$line" | cut -d$'\t' -f2)"
-  state="$(echo "$line" | cut -d$'\t' -f3)"
-  name="$(echo "$line" | cut -d$'\t' -f4-)"
+  aws_cmd=(aws ec2 describe-instances \
+    --output text \
+    --query "$query" \
+    --filter "$filter" \
+  )
 
-  [[ "$name" == *"$target_name"* ]] || continue
+  [ -n "$profile" ] && aws_cmd+=(--profile "$profile")
+  [ -n "$region" ] && aws_cmd+=(--region "$region")
 
-  if [ "$dns_type" = 'private' ]; then
-    host="$private"
-  elif [ "$dns_type" = 'public' ]; then
-    host="$public"
-  else
-    [ -n "$public" ] && host="$public" || host="$private"
-  fi
+  while read -r line; do
+    private="$(echo "$line" | cut -d$'\t' -f1)"
+    public="$(echo "$line" | cut -d$'\t' -f2)"
+    state="$(echo "$line" | cut -d$'\t' -f3)"
+    name="$(echo "$line" | cut -d$'\t' -f4-)"
 
-  [ -n "$host" ] || continue
+    [[ "$name" == *"$target_name"* ]] || continue
 
-  canidates+=("${host} ${state} ${name}")
-done < <("${aws_cmd[@]}")
+    if [ "$dns_type" = 'private' ]; then
+      host="$private"
+    elif [ "$dns_type" = 'public' ]; then
+      host="$public"
+    else
+      [ -n "$public" ] && host="$public" || host="$private"
+    fi
+
+    [ -n "$host" ] || continue
+
+    canidates+=("${host} ${state} ${name}")
+  done < <("${aws_cmd[@]}")
+}
+
+[ "${#profiles[@]}" = 0 ] && profiles+=('')
+[ "${#regions[@]}" = 0 ] && regions+=('')
+
+if [ -n "$all_regions" ]; then
+  regions=()
+  while read -r region; do
+    regions+=("$region")
+  done < <( \
+    aws ec2 describe-regions --output text --query 'Regions[*].[RegionName]' \
+  )
+fi
+
+for profile in "${profiles[@]}"; do
+  for region in "${regions[@]}"; do
+    add_canidates "$profile" "$region"
+  done
+done
 
 if [ "${#canidates[@]}" -eq 0 ]; then
   error "No hosts found"
@@ -136,11 +173,11 @@ else
       [ "${#host}" -gt 30 ] && host="${host:0:27}..."
       [ "$state" = 'running' ] && state=
       printf '%-3s %-40s %-30s %-13s\n' \
-	"${number})" "$name" "$host" "$state"
+	"${number})" "$name" "$host" "$state" >&2
       number=$((number + 1))
     done
 
-    echo -n '> '
+    echo -n '> ' >&2
     read -r choose
   fi
 
@@ -166,5 +203,10 @@ if [ -n "$host_only" ]; then
 fi
 
 [ -n "$user" ] && host="${user}@${host}"
-ssh_cmd=(ssh "$host" "$@")
+
+verbose "Connecting to ${host}"
+
+ssh_cmd=(ssh)
+[ -n "$verbose" ] && ssh_cmd+=(-v)
+ssh_cmd+=("$host" "$@")
 exec "${ssh_cmd[@]}"
