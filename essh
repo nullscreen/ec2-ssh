@@ -3,92 +3,77 @@
 verbose=
 
 error() {
-  echo "$*" >&2
+  printf '%s\n' "$*" >&2
   exit 1
 }
 
 usage_error() {
-  [ "$#" -gt 0 ] && echo "$*" >&2
+  [ "$#" -gt 0 ] && printf '%s\n\n' "$*" >&2
   usage
   exit 1
 }
 
 verbose() {
   [ -n "$verbose" ] || return
-  echo "$*" >&2
+  printf '%s\n' "$*" >&2
 }
 
 usage() {
   cat >&2 <<EOF
-Usage: $(basename "$0") [OPTIONS] [SEARCH] [-- [SSH_OPTS]]
+Usage: $(basename "$0") [OPTIONS] [SEARCH] [--] [SSH_OPT...]
 
-SSH to an AWS EC2 instance by Name tag. SEARCH can be a host Name tag or
-substring. If SEARCH is omitted, all hosts will be selected.
+SSH to an AWS EC2 instance by Name tag.
 
   essh web
 
 OPTIONS
-  -c|--choose        Chose the given number instead of showing choices
-  -d|--private       Use private DNS name
-  -D|--public        Use public DNS name
-  -h|--help          Show this help message
-  -l|--list          Force showing the list even for only 1 option
-  -n|--host-only     Print the host name instead of sshing to the host
-  -p|--profile       An AWS CLI configuration profile. Multiple allowed.
-  -r|--region        An AWS region. Multiple allowed.
-  -R|--all-regions   Search all AWS regions. Overrides -r.
-  -u|--user          An ssh login user
-  -v|--verbose       Show verbose messages
-  --                 If given, any options after it are sent to ssh
+  -c number   Chose the given number instead of showing choices
+  -d          Use private DNS name
+  -D          Use public DNS name
+  -h          Show this help message
+  -l          Force showing the list even for only 1 option
+  -n          Print the host name instead of sshing to the host
+  -p profile  An AWS CLI configuration profile. Multiple allowed.
+  -r region   An AWS region. Multiple allowed.
+  -R          Search all AWS regions. Overrides -r.
+  -u user     An ssh login user
+  -v          Show verbose messages
+
+SEARCH
+  Searches for matches in the EC2 instance Name tag. Substrings are allowed.
+  If search is omitted, all hosts will be selected.
+
+SSH_OPTS
+  If arguments are given after the search, they are passed to SSH
 EOF
 }
 
-getopt -T && error 'GNU getopt required. Legacy getopt not supported.'
-
-# Parse options with getopt
-options="$(getopt \
-  -o 'c:dDhlnp:r:Ru:v' \
-  --long 'choose:,private,public,help,list,host-only,profile,region,all-regions,user:verbose' \
-  -n "$(basename "$0")" \
-  --quiet \
-  -- "$@" \
-)"
-eval set -- "$options"
-
-while true; do
-  case "$1" in
-    -c|--choose)
-      choose="$2"; shift 2 ;;
-    -d|--private)
-      dns_type=private; shift 1 ;;
-    -D|--public)
-      dns_type=public; shift 1 ;;
-    -h|--help)
-      usage && exit ;;
-    -l|--list)
-      list=1; shift 1 ;;
-    -n|--host-only)
-      host_only=1; shift 1 ;;
-    -p|--profile)
-      profiles+=("$2"); shift 2 ;;
-    -r|--region)
-      regions+=("$2"); shift 2 ;;
-    -R|--all-regions)
-      all_regions=1; shift 1 ;;
-    -u|--user)
-      user="$2"; shift 2 ;;
-    -v|--verbose)
-      verbose=1; shift 1 ;;
-    --) shift 1; break ;;
-    *)
-      usage_error "Invalid option $1" ;;
+while getopts :c:dDhlnp:r:Ru:v opt; do
+  case "$opt" in
+    c) choose="$OPTARG";;
+    d) dns_type=private;;
+    D) dns_type=public;;
+    h) usage && exit;;
+    l) list=1;;
+    n) host_only=1;;
+    p) profiles+=("$OPTARG");;
+    r) regions+=("$OPTARG");;
+    R) all_regions=1;;
+    u) user="$OPTARG";;
+    v) verbose=1;;
+    \?) usage_error "Invalid option -${OPTARG}";;
+    :) usage_error "Option -${OPTARG} requires an argument" ;;
   esac
 done
 
-if [ "$#" -gt 0 ]; then
+shift $((OPTIND - 2))
+[ "$1" != '--' ] && shift
+
+if [ "$#" -gt 0 ] && [ "$1" != '--' ]; then
   target_name="$1"
   shift
 fi
+[ "$1" == '--' ] && shift
 
 if ! hash aws 2>/dev/null; then
   error 'The aws CLI is required'
@@ -209,4 +194,6 @@ verbose "Connecting to ${host}"
 ssh_cmd=(ssh)
 [ -n "$verbose" ] && ssh_cmd+=(-v)
 ssh_cmd+=("$host" "$@")
+
+verbose "${ssh_cmd[@]}"
 exec "${ssh_cmd[@]}"
