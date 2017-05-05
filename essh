@@ -170,9 +170,9 @@ else
       state="${parts[1]}"
       name="${parts[*]:2}"
       [ "${#name}" -gt 40 ] && name="${name:0:37}..."
-      [ "${#host}" -gt 30 ] && host="${host:0:27}..."
+      [ "${#host}" -gt 45 ] && host="${host:0:27}..."
       [ "$state" = 'running' ] && state=
-      printf '%-3s %-40s %-30s %-13s\n' \
+      printf '%-3s %-40s %-45s %-13s\n' \
 	"${number})" "$name" "$host" "$state" >&2
       number=$((number + 1))
     done
