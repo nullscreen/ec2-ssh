@@ -66,14 +66,20 @@ while getopts :c:dDhlnp:r:Ru:v opt; do
   esac
 done
 
-shift $((OPTIND > 1 ? OPTIND - 2 : OPTIND - 1))
-[ "$1" != '--' ] && shift
+# Preserve -- option if it is given first
+if [ "${*:$((OPTIND - 1)):1}" == '--' ]; then
+  OPTIND=$((OPTIND - 1))
+fi
 
-if [ "$#" -gt 0 ] && [ "$1" != '--' ]; then
+# Shift off options
+shift $((OPTIND - 1))
+
+if [ "$1" == '--' ]; then
+  shift
+elif [ "$#" -gt 0 ]; then
   target_name="$1"
   shift
 fi
-[ "$1" == '--' ] && shift
 
 if ! hash aws 2>/dev/null; then
   error 'The aws CLI is required'
