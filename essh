@@ -147,7 +147,7 @@ for profile in "${profiles[@]}"; do
   done
 done
 
-IFS=$'\n' canidates=($(sort -k 3 <<<"${canidates[*]}"))
+IFS=$'\n' canidates=($(sort -s -k3 -k1 <<<"${canidates[*]}"))
 unset IFS
 
 if [ "${#canidates[@]}" -eq 0 ]; then
