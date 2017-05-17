@@ -147,6 +147,9 @@ for profile in "${profiles[@]}"; do
   done
 done
 
+IFS=$'\n' canidates=($(sort -k 3 <<<"${canidates[*]}"))
+unset IFS
+
 if [ "${#canidates[@]}" -eq 0 ]; then
   error "No hosts found"
 elif [ "${#canidates[@]}" -eq 1 ] && [ -z "$list" ]; then
