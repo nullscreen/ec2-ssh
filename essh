@@ -94,7 +94,7 @@ query+="]"
 
 filter="Name=instance-state-name,Values=pending,running,shutting-down,stopping"
 
-add_canidates() {
+add_candidates() {
   local profile="$1"
   local region="$2"
 
@@ -125,7 +125,7 @@ add_canidates() {
 
     [ -n "$host" ] || continue
 
-    canidates+=("${host} ${state} ${name}")
+    candidates+=("${host} ${state} ${name}")
   done < <("${aws_cmd[@]}")
 }
 
@@ -143,23 +143,23 @@ fi
 
 for profile in "${profiles[@]}"; do
   for region in "${regions[@]}"; do
-    add_canidates "$profile" "$region"
+    add_candidates "$profile" "$region"
   done
 done
 
-IFS=$'\n' canidates=($(sort -s -k3 -k1 <<<"${canidates[*]}"))
+IFS=$'\n' candidates=($(sort -s -k3 -k1 <<<"${candidates[*]}"))
 unset IFS
 
-if [ "${#canidates[@]}" -eq 0 ]; then
+if [ "${#candidates[@]}" -eq 0 ]; then
   error "No hosts found"
-elif [ "${#canidates[@]}" -eq 1 ] && [ -z "$list" ]; then
-  canidate=(${canidates[@]})
-  host="${canidate[0]}"
+elif [ "${#candidates[@]}" -eq 1 ] && [ -z "$list" ]; then
+  candidate=(${candidates[@]})
+  host="${candidate[0]}"
 else
   if [ -z "$choose" ]; then
     number=1
-    for canidate in "${canidates[@]}"; do
-      parts=($canidate)
+    for candidate in "${candidates[@]}"; do
+      parts=($candidate)
       host="${parts[0]}"
       state="${parts[1]}"
       name="${parts[*]:2}"
@@ -183,11 +183,11 @@ else
     error "Invalid choice ${choose}"
   fi
 
-  if [ "$choose" -lt 1 ] || [ "$choose" -gt "${#canidates[@]}" ]; then
+  if [ "$choose" -lt 1 ] || [ "$choose" -gt "${#candidates[@]}" ]; then
     error "Choice ${choose} out of range"
   fi
 
-  chosen=(${canidates[(($choose - 1))]})
+  chosen=(${candidates[(($choose - 1))]})
   host="${chosen[0]}"
 fi
 
