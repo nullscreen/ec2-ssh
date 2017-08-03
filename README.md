@@ -119,7 +119,7 @@ $ ssh -- -i ~/.ssh/id_rsa
 
 ## License
 
-Copyright 2017 Warner Bros
+Copyright 2017 Warner Bros. Entertainment Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
