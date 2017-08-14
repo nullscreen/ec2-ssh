@@ -1,5 +1,7 @@
 # EC2 SSH
 
+[![Build Status](https://travis-ci.org/machinima/ec2-ssh.svg?branch=master)](https://travis-ci.org/machinima/ec2-ssh)
+
 SSH to an EC2 instance by `Name` tag.
 
 ## Installation
