@@ -1,6 +1,6 @@
 # EC2 SSH
 
-[![Build Status](https://travis-ci.org/machinima/ec2-ssh.svg?branch=master)](https://travis-ci.org/machinima/ec2-ssh)
+[![CI Status](https://github.com/nullscreen/ec2-ssh/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/nullscreen/ec2-ssh/actions?query=workflow%3ACI+branch%3Amaster)
 
 SSH to an EC2 instance by `Name` tag.
 
