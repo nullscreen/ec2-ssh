@@ -147,19 +147,22 @@ for profile in "${profiles[@]}"; do
   done
 done
 
-IFS=$'\n' candidates=($(sort -s -k3 -k1 <<<"${candidates[*]}"))
-unset IFS
+# Sort candidates by name and host
+while IFS='' read -r candidate; do
+  sorted_candidates+=("$candidate")
+done < <(printf '%s\n' "${candidates[@]}" | sort -s -k3 -k1)
+candidates=("${sorted_candidates[@]}")
 
 if [ "${#candidates[@]}" -eq 0 ]; then
   error "No hosts found"
 elif [ "${#candidates[@]}" -eq 1 ] && [ -z "$list" ]; then
-  candidate=(${candidates[@]})
+  IFS=' ' read -ra candidate <<< "${candidates[0]}"
   host="${candidate[0]}"
 else
   if [ -z "$choose" ]; then
     number=1
     for candidate in "${candidates[@]}"; do
-      parts=($candidate)
+      IFS=' ' read -ra parts <<< "${candidate}"
       host="${parts[0]}"
       state="${parts[1]}"
       name="${parts[*]:2}"
@@ -187,7 +190,7 @@ else
     error "Choice ${choose} out of range"
   fi
 
-  chosen=(${candidates[(($choose - 1))]})
+  IFS=' ' read -ra chosen <<< "${candidates[(($choose - 1))]}"
   host="${chosen[0]}"
 fi
 
